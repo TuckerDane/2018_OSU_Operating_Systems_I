@@ -1,0 +1,430 @@
+#!/bin/bash
+
+#////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# CS344 - Operating Systems I
+#
+# Name:		Tucker Dane Walker
+# Date:		15 January 2017
+# Description:	matrix - A bash script that
+#		[x] Calculates basic matrix operations using input from either a file or stdin.
+#			[x] Prints the dimensions of a matrix:
+#				[x] 'matrix dims [MATRIX]'
+#				[x] prints the dimensions as the number of rows, followed by a space, then the number of columns
+#			[x] Transposes a matrix:
+#				[x] 'matrix transpose [MATRIX]'
+#				[x] reflects the elements of the matrix along the main diagonal.
+#				[x] an MxN matrix will become an NxM matrix and the values along the main diagonal will remain unchanged. 
+#			[x] Calculates the mean vector of a matrix:
+#				[x] 'matrix mean [MATRIX]'
+#			 	[x] takes an MxN matrix and returns an 1xN row vecor
+#				[x] the first element is the mean of column one, the second element is the mean of column two, and so on.
+#			[x] Adds two matrices:
+#				[x] 'matrix add [MATRIX]'
+#			 	[x] takes two MxN matrices and adds them together element-wise to produce an MxN matrix
+#				[x] returns an error if the matrices do not have the same dimensions
+#			[x] Multiplies two matrices:
+#				[x] 'matrix multiply [MATRIX]'
+#			 	[x] takes an MxN and NxP matrix and produces an MxP matrix
+#				[x] this is not commutative A*B != B*A
+#		[x] General format of matrix command is: 'matrix OPERATION [ARGUMENT]'
+#		[x] Checks for the right number and format of arguments
+#			[x] Checks that a given input file is readable
+#			[x] A valid matrix...
+#				- is tab delimited
+#				- contains at least one element
+#				- each element is a signed int
+#				- every entry is defined
+#				- the table is rectangular
+#			[x] If the inputs are valid...
+#				[x] the program outputs only to stdout
+#				[x] no output to stderr
+#				[x] the return value is 0
+#			[x] If the inputs are invalid...
+#				[x] the program outputs only to stderr
+#				[x] no output to stdout
+#				[x] the return value is anything but 0
+#				[x] there should be an error message printed to stderr
+#		[x] temp files...
+#			[x] are made inside the working directory, not /tmp
+#			[x] are labeled with the process ID
+#			[x] are removed when the program is done
+#			[x] the trap command is used to catch  interrupt, hangup, and terminate signals to remove temp files if the program is terminated unexpectedly		
+#		[x] all values and results are integers
+#			[x] the average is rounded to the nearest integer, half values round away from 0 (i.e. 7.5 rounds to 8, -7.5 rounds to -8)
+#
+#/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#/////////////////////////////////////////////////////////////////////////
+# GLOBALS
+#/////////////////////////////////////////////////////////////////////////
+SUCCESS=0
+ERROR=1
+FALSE=0
+TRUE=1
+NULL=-1
+
+#/////////////////////////////////////////////////////////////////////////
+# FUNCTIONS
+#/////////////////////////////////////////////////////////////////////////
+
+# INITIALIZATION 
+#.......................
+init(){
+	# trap command
+	trap "removeTemps; echo 'trap command executed'; exit $ERROR" INT HUP TERM
+
+	# generate temporary matrix file locations
+	lMat=./leftMatrix$$	# used to store the left matrix for operating on
+	rMat=./rightMatrix$$	# used to store the right matrix for operating on
+	oMat=./outputMatrix$$	# used to store the output matrix
+}
+
+# CLEANUP 
+#.......................
+removeTemps()
+{
+	# if these temp files exist, remove them
+	if [ -e "$sMat" ]; then
+		rm $sMat
+	fi
+	
+	if [ -e "$lMat" ]; then
+		rm $lMat
+	fi
+	
+	if [ -e "$rMat" ]; then
+		rm $rMat
+	fi
+	
+	if [ -e "$oMat" ]; then
+		rm $oMat
+	fi
+}
+
+# USAGE ERROR 
+#.......................
+usageError(){
+	echo -en "\e[96mUSAGE: matrix command [MATRIX]\e[0m\n" >&2
+	removeTemps
+	exit $ERROR
+}
+
+# INPUT VALIDATION 
+#.......................
+inputValidation(){
+
+	# check for command argument
+	if [[ "$#" -lt 1 ]]; then
+		echo -en "\e[31mERROR: missing matrix command\n" >&2
+		usageError
+	fi
+
+	# check for valid command argument
+	if [[ "$1" !=  "dims" && "$1" !=  "transpose" && "$1" !=  "mean" && "$1" !=  "add" && "$1" !=  "multiply" ]]; then
+		echo -en "\e[31mERROR: invalid matrix command\n" >&2
+		echo -en "valid commands are...\n" >&2
+		echo -en "\tdims\n" >&2
+		echo -en "\ttranspose\n" >&2
+		echo -en "\tmean\n" >&2
+		echo -en "\tadd\n" >&2
+		echo -en "\tmultiply\e[0m\n" >&2
+		usageError
+	fi
+	
+	# check for the correct number of [MATRIX] arguments for given commands
+	# if the command is dims, transpose, or mean then
+	if [[ $1 == "dims" || $1 == "transpose" || $1 == "mean" ]]; then
+	
+		# if input is only the matrix command, write from stdin to $lMat
+		if [ "$#" -eq 1 ]; then
+			cat > $lMat
+		fi
+		
+		# validate arguments
+		validateArgs ${@:2}
+
+		# 1 argument is required, throw an error otherwise
+		if [ -e "$rMat" ]; then
+			echo -en "\e[31mERROR: incorrect parameter count for $1!\e[0m\n" >&2
+			usageError
+		fi
+	else	# if the command is add or multiply
+		# 2 arguments are required, throw an error otherwise
+		
+		# if input is only the matrix command, throw an error
+		if [ "$#" -eq 1 ]; then
+			echo -en "\e[31mERROR: incorrect parameter count for $1!\e[0m\n" >&2
+			usageError
+		fi
+		
+		# validate arguments
+		validateArgs ${@:2}
+
+		if [ ! -e "$rMat" ]; then
+			echo -en "\e[31mERROR: incorrect parameter count for $1!\e[0m\n" >&2
+			usageError
+		fi
+	fi
+}
+
+# VALIDATE ARGS 
+#.......................
+validateArgs(){
+
+	# if there are more than 2 arguments, invalid command
+	if [ "$#" -gt 2 ]; then
+		echo -en "\e[31mERROR: too many arguments!\e[0m\n" >&2
+		usageError
+	# else if input is at least one file, write the first file to $lMat
+	elif [ "$#" -gt 0 ]; then				
+		# if $1 is an existing file
+		if [ -e "$1" ]; then
+			# if the file is unreadable, throw an error
+			if [ ! -r "$1" ]; then	
+				echo -en "\e[31mERROR: $1 file is unreadable!\e[0m\n" >&2
+				usageError
+			fi
+			# else, place it in $lMat
+			cat $1 > $lMat
+		else # else it is not an existing file, throw an error
+			echo -en "\e[31mERROR: $1 is not a file!\e[0m\n" >&2
+			usageError			
+		fi
+		
+		# and if input contains a second file, place it in $rMat
+		if [ "$#" -eq 2 ]; then
+			# if $2 is an existing file
+			if [ -e "$2" ]; then
+				# if the file is unreadable, throw an error
+				if [ ! -r "$2" ]; then	
+					echo -en "\e[31mERROR: $2 file is unreadable!\e[0m\n" >&2
+					usageError
+				fi
+
+				# else, place it in $rMat
+				cat $2 > $rMat
+			else # else it is not an existing file, throw an error
+				echo -en "\e[31mERROR: $2 is not a file!\e[0m\n" >&2
+				usageError
+			fi			
+		fi
+	fi
+
+}
+
+# COMMAND FUNCTIONS
+#.......................
+commandSwitch(){
+
+	# if the command is dims, transpose, or mean then
+	if [[ $1 == "dims" || $1 == "transpose" || $1 == "mean" ]]; then
+		# run the specified command on the leftMatrix		
+		$1 $lMat		
+	else # if the command is add or multiply
+		# run the specified command on leftMatrix and rightMatrix
+		$1 $lMat $rMat
+	fi 	
+}
+
+# dims 
+#.......................
+dims(){
+	rows=0
+	cols=0
+
+	while read matrixRow
+	do
+		if [ $rows == 0 ]; then
+			for i in $matrixRow
+			do
+				(( cols++ ))	
+			done
+		fi
+		(( rows++ ))
+	done < $1	
+
+	echo "$rows $cols"
+}
+
+# transpose
+#.......................
+transpose(){	
+	
+	leftMatCol=$(dims $1 | tr ' ' '\t' | cut -f2)
+	currentCol=0
+
+	while [[ $currentCol -lt $leftMatCol ]]
+	do
+		line=$(cat $1 | cut -f$(expr $currentCol + 1) | tr "\n" "\t")
+		echo "${line%?}" >> $oMat
+		currentCol=$(( $currentCol + 1))
+	done
+
+	# OUTPUT MATRIX
+	cat $oMat
+}
+
+# mean
+#.......................
+mean(){
+
+	leftMatCol=$(dims $1 | tr ' ' '\t' | cut -f2)
+	currentCol=0
+
+	while [[ $currentCol -lt $leftMatCol ]]
+	do
+		line=$(cat $1 | cut -f$(expr $currentCol + 1) | tr "\n" "\t")
+		count=0
+		sum=0
+
+		for i in $line
+		do
+			sum=$(expr $sum + $i)
+			count=$(expr $count + 1)			
+		done
+		
+		average=$(( ($sum + ($count/2)*( ($sum>0)*2-1 )) / $count )) 	
+		echo -en "$average"  >> $oMat
+		
+		if [[ $currentCol -lt $leftMatCol-1 ]]; then
+			echo -en "\t"  >> $oMat
+		fi
+
+		currentCol=$(( $currentCol + 1))
+	done
+
+	echo -en "\n" >> $oMat
+	
+	# OUTPUT MATRIX
+	cat $oMat
+
+}
+
+# add
+#.......................
+add(){
+	leftMatRow=$(dims $1 | tr ' ' '\t' | cut -f1)
+	leftMatCol=$(dims $1 | tr ' ' '\t' | cut -f2)
+	rightMatRow=$(dims $2 | tr ' ' '\t' | cut -f1)
+	rightMatCol=$(dims $2 | tr ' ' '\t' | cut -f2)
+	currentRow=0
+	currentCol=0
+
+	# CHECK TO ENSURE MATRICES ARE COMPATIBLE
+	if [[ $leftMatRow != $rightMatRow || $leftMatCol != $rightMatCol ]]; then
+		echo -en "\e[31mERROR: matrices incompatible for addition!\e[0m\n" >&2
+		usageError
+	fi
+
+	# ADD MATRICES
+	
+	# for every row
+	while [[ $currentRow -lt $leftMatRow ]]
+	do
+		# for every line
+		while [[ $currentCol -lt $leftMatCol ]]
+		do
+			# add the elements together and append to the output file
+			leftVal=$(head -$(expr $currentRow + 1) $1 | tail -1 | cut -f$(expr $currentCol + 1))
+			rightVal=$(head -$(expr $currentRow + 1) $2 | tail -1 | cut -f$(expr $currentCol + 1))
+			
+			outVal=$(expr $leftVal + $rightVal)
+			echo -en "$outVal" >> $oMat
+			
+			if [ $(expr $currentCol + 1) != $leftMatCol ]; then
+				echo -en "\t" >> $oMat
+			fi
+
+			currentCol=$(expr $currentCol + 1)			
+		done
+		echo -en "\n" >> $oMat
+		currentRow=$(expr $currentRow + 1)
+		currentCol=0
+	done
+	
+	# OUTPUT MATRIX
+	cat $oMat
+}
+
+# multiply
+#.......................
+multiply(){
+
+	# define the matrix dimensions
+	leftMatRow=$(dims $1 | tr ' ' '\t' | cut -f1)
+	leftMatCol=$(dims $1 | tr ' ' '\t' | cut -f2)
+	rightMatRow=$(dims $2 | tr ' ' '\t' | cut -f1)
+	rightMatCol=$(dims $2 | tr ' ' '\t' | cut -f2)
+
+	# check to ensure that the matrices are compatible
+	if [[ $leftMatCol != $rightMatRow ]]; then
+		echo -en "\e[31mERROR: matrices incompatible for multiplication!\e[0m\n" >&2
+		usageError
+	fi
+	
+	# define counters for looping through me matrices
+	i=0	# rows of the left matrix
+	j=0	# columns of the right matrix
+	k=0	# columns of the left matrix AND rows of the right matrix
+
+	# calculate the dot product and push to a file
+	#.................................................
+
+	# for every ith row in the left matrix
+	while [[ $i -lt $leftMatRow ]]
+	do
+		j=0
+		# for every jth column in the right matrix
+		while [[ $j -lt $rightMatCol ]]
+		do
+			# set a new dot product
+			dotProduct=0
+			k=0
+			# for every kth colum in the left matrix
+			while [[ $k -lt $leftMatCol ]]
+			do
+				# multiply row(i)col(k) of the left matrix X row(k)col(j) of the right matrix	
+				leftVal=$(head -$(expr $i + 1) $1 | tail -1 | cut -f$(expr $k + 1))
+				rightVal=$(head -$(expr $k + 1) $2 | tail -1 | cut -f$(expr $j + 1))
+				
+				product=$(($leftVal * $rightVal))
+					
+				# add the resulting value to the dot product
+				dotProduct=$(expr $dotProduct + $product)
+
+				# increment k
+				k=$(expr $k + 1)
+			done
+
+			# append the dot product to the output file
+			echo -en "$dotProduct" >> $oMat
+			
+			# increment j
+			j=$(expr $j + 1)
+
+			# append \t to the output file
+			if [[ $j -ne $rightMatCol ]]; then 
+				echo -en "\t" >> $oMat
+			fi
+
+		done
+
+		# increment i
+		i=$(expr $i + 1)
+
+		# append \n to a file
+		echo -en "\n" >> $oMat
+		
+	done
+	
+	# OUTPUT MATRIX
+	cat $oMat
+}
+
+#/////////////////////////////////////////////////////////////////////////
+# MAIN
+#/////////////////////////////////////////////////////////////////////////
+init			# initialization of temp files and trap commands
+inputValidation $@	# validate user input
+commandSwitch $@	# run specified command
+removeTemps		# clean up any temporary files
