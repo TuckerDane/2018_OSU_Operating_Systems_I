@@ -1,0 +1,1 @@
+to compile, run: gcc -lpthread -o smallsh smallsh.c
