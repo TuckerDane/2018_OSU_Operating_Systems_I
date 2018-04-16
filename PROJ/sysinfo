@@ -1,0 +1,163 @@
+#!/bin/bash
+# Sample script written for Part 4 of the RHCE series
+# This script will return the following set of system information:
+# -hstname information:
+hst(){
+	echo -e "\e[44;97m***** HOSTNAME INFORMATION *****\e[0m"
+	hostnamectl
+	echo ""	
+}
+
+# -File system disk space usage:
+disk(){
+	echo -e "\e[44;97m***** FILE SYSTEM DISK SPACE USAGE *****\e[0m"
+	df -h
+	echo ""	
+}
+
+# -Free and used memory in the system:
+mem(){
+	echo -e "\e[44;97m ***** FREE AND USED MEMORY *****\e[0m"
+	free
+	echo ""
+}
+
+# -System uptime and load:
+sys(){
+	echo -e "\e[44;97m***** SYSTEM UPTIME AND LOAD *****\e[0m"
+	uptime
+	echo ""
+}
+
+# -Logged-in users:
+user(){
+	echo -e "\e[44;97m***** CURRENTLY LOGGED-IN USERS *****\e[0m"
+	who | sort 
+	echo ""
+}
+
+# -Top 5 processes as far as memory usage is concerned
+tpmem(){
+	echo -e "\e[44;97m***** TOP $1 MEMORY-CONSUMING PROCESSES *****\e[0m"
+	num=$(($1 + 1))
+	ps -eo euser,%mem,%cpu,comm --sort=-%mem | head -n $num
+	echo ""
+}
+
+# -Top 5 processes as far as cpu usage is concerned
+tpcpu(){
+	echo -e "\e[44;97m***** TOP $1 MEMORY-CONSUMING PROCESSES *****\e[0m"
+	num=$(($1 + 1))
+	ps -eo euser,%mem,%cpu,comm --sort=-%cpu | head -n $num
+	echo ""
+}
+
+# Process Management
+userp(){
+
+	if [[ $1 == "all" ]]; then
+		echo -e "\e[44;97m***** PROCESSES BY ALL USERS *****\e[0m"
+		ps -eH -o ppid,pid,euser,stat,%cpu,rss,args | awk '$1!=0' | awk '$1!=1' | awk '$1!=2' | more
+	else
+		echo -e "\e[44;97m***** PROCESSES BY USER $1 *****\e[0m"
+		ps -o ppid,pid,euser,stat,%cpu,rss,args | head -n 1; ps -eH -o ppid,pid,euser,stat,%cpu,rss,args | grep $1
+		echo ""
+	fi
+}
+
+# Process Management
+myTest(){
+	#echo -e "\e[44;97m***** PROCESSES BY ALL USERS *****\e[0m"
+	#ps -eH -o euser,pid,%cpu | grep -v 0.0 | grep -v root
+	#echo "$(ps -eH -o euser,pid,%cpu | grep -v 0.0 | grep -v root )" > test.txt
+	#date >> test.txt
+	#python3 fileHandler.py
+
+	echo -e "\e[44;97m***** PROCESSES BY WALKERTU *****\e[0m"
+	ps -eH -o euser,pid,%cpu | grep walkertu
+	echo "$(ps -eH -o euser,pid,%cpu | grep walkertu)" > test.txt
+	date >> test.txt
+	python3 fileHandler.py
+
+}
+
+all(){
+	hst
+	mem
+	sys
+	user
+}
+
+# USAGE ERROR 
+#.......................
+usageError(){
+	echo -en "\e[96mUSAGE: $0 command [args]\e[0m\n" >&2
+	validCommands
+	exit $ERROR
+}
+
+# VALID COMMANDS 
+#.......................
+validCommands(){
+	echo -en "\e[96m  all\e[0m\t\t\t- runs hst, mem, sys, and user\n"									>&2
+	echo -en "\e[96m  hst\e[0m\t\t\t- provides hostname information\n" 									>&2
+	echo -en "\e[96m  disk\e[0m\t\t\t- provides file system disk space usage\n" 						>&2
+	echo -en "\e[96m  mem\e[0m\t\t\t- shows free and used memory\n" 									>&2
+	echo -en "\e[96m  sys\e[0m\t\t\t- shows system uptime and load\n" 									>&2
+	echo -en "\e[96m  user\e[0m\t\t\t- shows currently logged in users\n" 								>&2
+	echo -en "\e[96m  tpmem [num]\e[0m\t\t- shows the top [num] memory-consuming processes\n" 			>&2
+	echo -en "\e[96m  tpcpu [num]\e[0m\t\t- shows the top [num] cpu-consuming processes\n" 				>&2
+	echo -en "\e[96m  userp [username]\e[0m\t- shows processes being run by the specified user\n" 		>&2
+	echo -en "\t\t\t- if [all] is specified, shows processes run by all users\e[0m\n" 		>&2
+}
+
+# INPUT VALIDATION 
+#.......................
+inputValidation(){
+
+	# check for command argument
+	if [[ "$#" -lt 1 ]]; then
+		echo -en "\e[91mERROR: missing command\n" >&2
+		usageError
+	fi
+
+	# check for valid command argument
+	if [[ "$1" != "all" && "$1" != "hst" && "$1" != "disk" && "$1" != "mem" && "$1" != "sys" && "$1" != "sys" && "$1" != "user" && "$1" != "tpcpu" && "$1" != "tpmem" && "$1" != "userp" && "$1" != "myTest" ]]; then
+		echo -en "\e[91mERROR: invalid matrix command\n" >&2
+		usageError
+	fi
+	
+	# check for the correct number of arguments for given commands
+	# if xyz arguments...
+	# validate arguments
+	validateArgs ${@:2}
+}
+
+# VALIDATE ARGS 
+#.......................
+validateArgs(){
+
+	# if there are more than 2 arguments, invalid command
+	if [ "$#" -gt 2 ]; then
+		echo -en "\e[91mERROR: too many arguments!\e[0m\n" >&2
+		usageError
+	fi
+
+}
+
+# COMMAND FUNCTIONS
+#.......................
+commandSwitch(){
+
+	# if the command is one of them, run it
+	if [[ "$1" == "all" || "$1" == "hst" || "$1" == "disk" || "$1" == "mem" || "$1" == "sys" || "$1" == "sys" || "$1" == "user" || "$1" == "myTest" ]]; then
+		# run the specified command on the arguments passed (if any)	
+		$1
+	elif [[ "$1" == "tpcpu" || "$1" == "tpmem" || "$1" == "userp" ]]; then
+		$1 $2
+	fi 	
+}
+
+inputValidation $@	# validate user input
+commandSwitch $@	# run specified command
+echo -e "\e[1;32mDone.\e[0m"

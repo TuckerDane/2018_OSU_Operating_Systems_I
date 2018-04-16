@@ -1,0 +1,7 @@
+{walkertu,9996,0.0}
+{walkertu,10004,0.0}
+{walkertu,21117,0.0}
+{walkertu,21136,0.0}
+{walkertu,21137,0.0}
+{walkertu,21138,0.0}
+{Sat,Apr,14,15:35:30,PDT,2018}
