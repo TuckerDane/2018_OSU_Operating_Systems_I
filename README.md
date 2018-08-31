@@ -1,4 +1,4 @@
-# 2018_OSU_Operating_Systems_I
+# 2018 OSU Operating Systems I
 ## Assignment I - Matrix
 In this assignment I was asked to write bash shell scripts to compute matrix operations. The purpose was to get familiar with the Unix shell, shell programming, Unix utilities, standard input, output, and error, pipelines, process ids, exit values, and signals (at a basic level).
 ## Assignment II - Adventure
